@@ -49,9 +49,4 @@ class net(nn.Module):
 
         return trimap, alpha_p
 
-
-
-
-
-
-
+        

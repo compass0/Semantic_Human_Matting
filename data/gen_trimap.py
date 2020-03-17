@@ -12,10 +12,10 @@ def get_args():
     print(args)
     return args
 
-def erode_dilate(msk, struc="ELLIPSE", size=(10, 10)):
+def erode_dilate(msk, struc="ELLIPSE", size=(1, 1)):
     if struc == "RECT":
         kernel = cv2.getStructuringElement(cv2.MORPH_RECT, size)
-    elif struc == "CORSS":
+    elif struc == "CROSS":
         kernel = cv2.getStructuringElement(cv2.MORPH_CROSS, size)
     else:
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, size)
@@ -27,7 +27,7 @@ def erode_dilate(msk, struc="ELLIPSE", size=(10, 10)):
 
     dilated = cv2.dilate(msk, kernel, iterations=1) * 255
     eroded = cv2.erode(msk, kernel, iterations=1) * 255
-
+    
     cnt1 = len(np.where(msk >= 0)[0])
     cnt2 = len(np.where(msk == 0)[0])
     cnt3 = len(np.where(msk == 1)[0])
@@ -54,19 +54,19 @@ def erode_dilate(msk, struc="ELLIPSE", size=(10, 10)):
 
 def main():
     #args = get_args()
-    f = open('./data/list.txt')
+    f = open('.\\data\\list.txt')
     names = f.readlines()
     print("Images Count: {}".format(len(names)))
     for name in names:
-        img_name = './data/mattedimage' + "/" + name.strip() + ".png"
+        img_name = '.\\data\\mattedimage' + "\\" + name.strip() + ".png"
         print(img_name)
-        msk_name = './data/mask' + "/" + name.strip() + ".png"
-        trimap_name = './data/' + "/trimap/" + name.strip() + ".png"
+        msk_name = '.\\data\\mask' + "\\" + name.strip() + ".png"
+        trimap_name = '.\\data\\' + "\\trimap\\" + name.strip() + ".png"
         
-        img = cv2.imread(img_name, cv2.IMREAD_UNCHANGED) 
+        img = cv2.imread(img_name, cv2.IMREAD_UNCHANGED)
         alpha = img[:,:,3] # alpha map
         print("Write to {}".format(msk_name))
-        cv2.imwrite(msk_name, alpha) 
+        cv2.imwrite(msk_name, alpha)
         ret,alpha = cv2.threshold(alpha,127,255,cv2.THRESH_BINARY) # make alpha value 0 or 255
         trimap = erode_dilate(alpha, size=(50,50)) # generate trimap from alpha map
         cv2.imshow('alpha', alpha)
