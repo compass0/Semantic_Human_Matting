@@ -7,7 +7,7 @@ Date  : 2018/12/24
 
 import torch
 import torch.nn as nn
-
+import torch.nn.functional as F     # Library for prevent dropout
 
 class M_net(nn.Module):
     '''
@@ -82,7 +82,7 @@ class M_net(nn.Module):
 
         # ----------------
         # encoder
-        # --------
+        # ----------------
         x = self.en_conv_bn_relu_1(input)
         x = self.max_pooling_1(x)
 
@@ -92,11 +92,14 @@ class M_net(nn.Module):
         x = self.en_conv_bn_relu_3(x)
         x = self.max_pooling_3(x)
 
+        # inserting dropout code
+        x = F.dropout(x, p = 0.4, training = True)
         x = self.en_conv_bn_relu_4(x)
         x = self.max_pooling_4(x)
+
         # ----------------
         # decoder
-        # --------
+        # ----------------
         x = self.de_conv_bn_relu_1(x)
         x = self.deconv_1(x)
         x = self.de_conv_bn_relu_2(x)
@@ -105,6 +108,8 @@ class M_net(nn.Module):
         x = self.de_conv_bn_relu_3(x)
         x = self.deconv_3(x)
 
+        # inserting dropout code
+        x = F.dropout(x, p = 0.4, training = True)
         x = self.de_conv_bn_relu_4(x)
         x = self.deconv_4(x)
 

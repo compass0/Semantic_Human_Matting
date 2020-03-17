@@ -1,10 +1,3 @@
-"""
-    train
-
-Author: Zhengwei Li
-Date  : 2018/12/24
-"""
-
 import argparse
 import math
 import torch
@@ -16,6 +9,9 @@ import os
 from data import dataset
 from model import network
 import torch.nn.functional as F
+
+# 시각화 라이브러리
+from matplotlib import pyplot as plt
 
 
 def get_args():
@@ -38,7 +34,7 @@ def get_args():
     parser.add_argument('--lr', type=float, default=1e-4, help='learning rate')
     parser.add_argument('--lrDecay', type=int, default=100)
     parser.add_argument('--lrdecayType', default='keep')
-    parser.add_argument('--nEpochs', type=int, default=300, help='number of epochs to train')
+    parser.add_argument('--nEpochs', type=int, default=250, help='number of epochs to train')
     parser.add_argument('--save_epoch', type=int, default=1, help='number of epochs to save model')
 
     parser.add_argument('--train_phase', default= 'end_to_end', help='train phase')
@@ -183,10 +179,24 @@ def main():
     model.to(device)
 
     print("============> Loading datasets ...")
-    train_data = getattr(dataset, args.trainData)(root_dir = args.dataDir, \
+
+    _data = getattr(dataset, args.trainData)(root_dir = args.dataDir, \
                                                   imglist = args.trainList, \
                                                   patch_size = args.patch_size)
+    train_size = int(0.8*len(_data))
+    test_size = len(_data) - train_size
+
+    lengths = [train_size, test_size]
+    #print("train data : {}, valid data: {}".format(lengths[0],lengths[1]))
+    train_data, valid_data = torch.utils.data.dataset.random_split(_data, lengths)
+    print(len(train_data), len(valid_data.indices))
     trainloader = DataLoader(train_data, 
+                             batch_size=args.train_batch, 
+                             drop_last=True, 
+                             shuffle=True, 
+                             num_workers=args.nThreads, 
+                             pin_memory=True)
+    validloader = DataLoader(valid_data, 
                              batch_size=args.train_batch, 
                              drop_last=True, 
                              shuffle=True, 
@@ -206,16 +216,24 @@ def main():
         start_epoch, model = trainlog.load_model(model) 
 
     model.train() 
+    
+    # make lists that contain loss value of training set and validation set!!
+    train_loss_per_epoch = list()
+    val_loss_per_epoch = list()
+
     for epoch in range(start_epoch, args.nEpochs+1):
 
         loss_ = 0
         L_alpha_ = 0
         L_composition_ = 0
         L_cross_ = 0
+
         if args.lrdecayType != 'keep':
             lr = set_lr(args, epoch, optimizer)
 
         t0 = time.time()
+        
+        model.train() 
         for i, sample_batched in enumerate(trainloader):
 
             img, trimap_gt, alpha_gt = sample_batched['image'], sample_batched['trimap'], sample_batched['alpha']
@@ -240,14 +258,46 @@ def main():
 
         t1 = time.time()
 
+        # test
+        model.eval()
+        t_loss_ = 0
+        t_L_alpha_ = 0
+        t_L_composition_ = 0
+        t_L_cross_ = 0
+
+        with torch.no_grad():
+            for sample_batched in validloader:
+                img, trimap_gt, alpha_gt = sample_batched['image'], sample_batched['trimap'], sample_batched['alpha']
+                img, trimap_gt, alpha_gt = img.to(device), trimap_gt.to(device), alpha_gt.to(device)
+                trimap_pre, alpha_pre = model(img)
+                loss, L_alpha, L_composition, L_cross = loss_function(args, 
+                                                                  img,
+                                                                  trimap_pre, 
+                                                                  trimap_gt, 
+                                                                  alpha_pre, 
+                                                                  alpha_gt)
+                t_loss_ += loss.item()
+                t_L_alpha_ += L_alpha.item()
+                t_L_composition_ += L_composition.item()
+                t_L_cross_ += L_cross.item()  
+
+
+
         if epoch % args.save_epoch == 0:
 
-            # speed = (t1 - t0) / 60 
+            # speed = (t1 - t0) / 60
+            train_len = lengths[0] 
+            test_len = lengths[1]
 
-            loss_ = loss_ / (i+1)
-            L_alpha_ = L_alpha_ / (i+1)
-            L_composition_ = L_composition_ / (i+1)
-            L_cross_ = L_cross_ / (i+1)
+            loss_ = loss_ / train_len
+            L_alpha_ = L_alpha_ / train_len
+            L_composition_ = L_composition_ / train_len
+            L_cross_ = L_cross_ / train_len
+
+            t_loss_ = t_loss_ / test_len
+            t_L_alpha_ = t_L_alpha_ / test_len
+            t_L_composition_ = t_L_composition_ / test_len
+            t_L_cross_ = t_L_cross_ / test_len
 
             log = "[{} / {}] \tLr: {:.5f}\nloss: {:.5f}\tloss_p: {:.5f}\tloss_t: {:.5f}\t" \
                      .format(epoch, args.nEpochs, 
@@ -255,10 +305,29 @@ def main():
                             loss_, 
                             L_alpha_+L_composition_, 
                             L_cross_)
+            t_log = "[Validation] \tloss: {:.5f}\tloss_p: {:.5f}\tloss_t: {:.5f}\t" \
+                     .format( t_loss_, 
+                            t_L_alpha_+t_L_composition_, 
+                            t_L_cross_)
             print(log)
+            print(t_log)
+
             trainlog.save_log(log)
             trainlog.save_model(model, epoch)
 
+            train_loss_per_epoch.append(loss_)   # save train loss value into the list
+            val_loss_per_epoch.append(t_loss_)   # save validation loss value into the list
+
+    # draw the loss graph per epoch
+    plt.figure(figsize=(10,10), dpi=160)
+    plt.plot()
+    plt.suptitle('loss of training and validation set')
+    plt.plot(list(range(1, args.nEpochs + 1)), train_loss_per_epoch, color='red', linestyle='-', label='train')
+    plt.plot(list(range(1, args.nEpochs + 1)), val_loss_per_epoch, color='red', linestyle='--', label='validation')
+    plt.text(x=0.5, y=0.5, s='learning rate = 0.0003\nEpochs = 100')
+    plt.xlabel("epochs")
+    plt.ylabel("loss")
+    plt.legend(loc='upper right')
 
 if __name__ == "__main__":
     main()

@@ -21,6 +21,7 @@ def read_files(data_dir, file_name={}):
     image = cv2.imread(image_name)
     trimap = cv2.imread(trimap_name)
     alpha = cv2.imread(alpha_name)
+    #print(image_name, trimap_name, alpha_name)
 
     return image, trimap, alpha
 
@@ -93,9 +94,9 @@ class human_matting_data(data.Dataset):
     def __getitem__(self, index):
         # read files
         image, trimap, alpha = read_files(self.data_root, 
-                                          file_name={'image': self.imgID[index].strip(),
-                                                     'trimap': self.imgID[index].strip()[:-4] +'.png',
-                                                     'alpha': self.imgID[index].strip()[:-4] +'.png'})
+                                          file_name={'image': self.imgID[index].strip()+'.png',
+                                                     'trimap': self.imgID[index].strip() +'.png',
+                                                     'alpha': self.imgID[index].strip() +'.png'})
         # NOTE ! ! !
         # trimap should be 3 classes : fg, bg. unsure
         trimap[trimap==0] = 0

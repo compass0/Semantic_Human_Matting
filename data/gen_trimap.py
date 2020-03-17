@@ -20,9 +20,8 @@ def erode_dilate(msk, struc="ELLIPSE", size=(10, 10)):
     else:
         kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, size)
 
-    #msk = msk.astype(np.float32)
-    msk = msk / 255
-    #msk = msk.astype(np.uint8)
+    msk = msk.astype(np.float32) / 255.0
+
 
     # val in 0 or 255
 
@@ -32,20 +31,20 @@ def erode_dilate(msk, struc="ELLIPSE", size=(10, 10)):
     cnt1 = len(np.where(msk >= 0)[0])
     cnt2 = len(np.where(msk == 0)[0])
     cnt3 = len(np.where(msk == 1)[0])
-    #print("all:{} bg:{} fg:{}".format(cnt1, cnt2, cnt3))
-    assert(cnt1 == cnt2 + cnt3)
+    print("all:{} bg:{} fg:{}".format(cnt1, cnt2, cnt3))
+#    assert(cnt1 == cnt2 + cnt3)
 
     cnt1 = len(np.where(dilated >= 0)[0])
     cnt2 = len(np.where(dilated == 0)[0])
     cnt3 = len(np.where(dilated == 255)[0])
-    #print("all:{} bg:{} fg:{}".format(cnt1, cnt2, cnt3))
-    assert(cnt1 == cnt2 + cnt3)
+    print("all:{} bg:{} fg:{}".format(cnt1, cnt2, cnt3))
+#    assert(cnt1 == cnt2 + cnt3)
 
     cnt1 = len(np.where(eroded >= 0)[0])
     cnt2 = len(np.where(eroded == 0)[0])
     cnt3 = len(np.where(eroded == 255)[0])
     #print("all:{} bg:{} fg:{}".format(cnt1, cnt2, cnt3))
-    assert(cnt1 == cnt2 + cnt3)
+#    assert(cnt1 == cnt2 + cnt3)
 
     res = dilated.copy()
     #res[((dilated == 255) & (msk == 0))] = 128
@@ -54,21 +53,27 @@ def erode_dilate(msk, struc="ELLIPSE", size=(10, 10)):
     return res
 
 def main():
-    args = get_args()
-    f = open(args.list)
+    #args = get_args()
+    f = open('./data/list.txt')
     names = f.readlines()
     print("Images Count: {}".format(len(names)))
     for name in names:
-        msk_name = args.mskDir + "/" + name.strip()[:-4] + ".png"
-        print(msk_name)
-        trimap_name = args.saveDir + "/" + name.strip()[:-4] + ".png"
-        msk = cv2.imread(msk_name, 0)
-        trimap = erode_dilate(msk, size=(args.size,args.size))
+        img_name = './data/mattedimage' + "/" + name.strip() + ".png"
+        print(img_name)
+        msk_name = './data/mask' + "/" + name.strip() + ".png"
+        trimap_name = './data/' + "/trimap/" + name.strip() + ".png"
+        
+        img = cv2.imread(img_name, cv2.IMREAD_UNCHANGED) 
+        alpha = img[:,:,3] # alpha map
+        print("Write to {}".format(msk_name))
+        cv2.imwrite(msk_name, alpha) 
+        ret,alpha = cv2.threshold(alpha,127,255,cv2.THRESH_BINARY) # make alpha value 0 or 255
+        trimap = erode_dilate(alpha, size=(50,50)) # generate trimap from alpha map
+        cv2.imshow('alpha', alpha)
+        cv2.waitKey(0)
 
         print("Write to {}".format(trimap_name))
         cv2.imwrite(trimap_name, trimap)
 
 if __name__ == "__main__":
     main()
-
-
